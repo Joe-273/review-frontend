@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-
 export const useUserStore = defineStore('user', () => {
   const loginStatus = ref(false) // 用于确定登录状态
   // 用户假数据
@@ -9,9 +8,13 @@ export const useUserStore = defineStore('user', () => {
   const loginPwd = ref('123123')
 
   function login(payload) {
+    console.log(payload)
     if (payload.loginId === loginId.value && payload.loginPwd === loginPwd.value) {
       loginStatus.value = true
-      sessionStorage.setItem("loginStatus", true)
+      sessionStorage.setItem('loginStatus', true)
+      return true
+    } else {
+      return false
     }
   }
 

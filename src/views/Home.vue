@@ -19,11 +19,12 @@
         <!-- 展示区域 -->
         <el-table
           :data="folderList"
+          v-loading="folderLoading"
           empty-text="无扫描文件"
           row-key="name"
           @row-click="handleRowClick"
         >
-          <el-table-column prop="fileName" label="扫描文件名" sortable>
+          <el-table-column prop="fileName" label="扫描文件" sortable>
             <template #default="scope">
               {{ scope.row.name }}
             </template>
@@ -33,20 +34,43 @@
           <el-button class="button" plain size="large" @click="handleRestart" type="warning">
             资料错误 ? 重新扫描
           </el-button>
-          <el-button class="button" plain size="large" @click="handleReview" type="primary">
+          <el-button
+            class="button"
+            ref="startButtonRef"
+            plain
+            size="large"
+            @click="handleReview"
+            type="primary"
+          >
             开始审核
           </el-button>
           <el-button class="button" plain size="large" @click="handleReviewEnding" type="success">
             审核结束 & 打印结果
           </el-button>
         </div>
+        <el-popover
+          :virtual-ref="startButtonRef"
+          :visible="showPopover"
+          trigger="click"
+          title="操作提示"
+          :width="200"
+          placement="right"
+          virtual-triggering
+        >
+          <span>确认扫描文件无误后，点击这里进行审核</span>
+          <div style="text-align: right; margin: 0">
+            <el-button size="small" plain type="primary" @click="showPopover = false"
+              >确认</el-button
+            >
+          </div>
+        </el-popover>
       </div>
       <div class="main-container" :class="{ 'main-detailView': detailView }">
         <el-image :src="currentPicture" fit="contain" style="width: 100%; height: 100%" />
       </div>
       <div class="right-list" :class="{ 'right-detailView': detailView }">
         <el-table :data="currentResult" empty-text="无校验结果">
-          <el-table-column width="200" label="检验项目" prop="name"></el-table-column>
+          <el-table-column label="检验项目" width="140" prop="name"></el-table-column>
           <el-table-column v-if="detailView" label="问题">
             <template #default="scope">
               <span v-if="!scope.row.result.right">
@@ -63,9 +87,17 @@
           </el-table-column>
         </el-table>
         <div class="right-button">
-          <el-button type="primary" size="large" @click="handletoggleDetailView" plain>{{
-            toggleViewsButtonMessage
-          }}</el-button>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            :disabled="detailView"
+            content="点击展开详细试图"
+            placement="top"
+          >
+            <el-button type="primary" size="large" @click="handletoggleDetailView" plain>
+              {{ toggleViewsButtonMessage }}
+            </el-button>
+          </el-tooltip>
         </div>
       </div>
     </div>
@@ -100,7 +132,7 @@ import { postOcr } from '@/api/ocr'
 import { verify } from '@/api/verify'
 
 import nameMap from '@/nameMap'
-
+import getFolderContent from '@/utils/getFolderContent'
 const router = useRouter()
 const folderStore = useFolderStore()
 const user = useUserStore()
@@ -114,7 +146,7 @@ const currentStep = ref(0)
 
 function goToSetting() {
   // TODO 这里应该是请求登录API验证
-  if (user.login({ loginId: 'admin', loginPwd: loginPwd })) {
+  if (user.login({ loginId: 'admin', loginPwd: loginPwd.value })) {
     // 密码正确
     router.push('/setting')
   } else {
@@ -128,6 +160,8 @@ function goToSetting() {
 /* 左边 */
 const reviewResult = ref(null) // 审核结果
 const currentPicture = ref(null) // 显示的图片
+const showPopover = ref(true) //显示提示
+const folderLoading = ref(false) // 加载效果
 // 扫描文件列表数组
 const folderList = computed(() => folderStore.folderContent)
 // 切换图片显示
@@ -156,6 +190,8 @@ async function handleRestart() {
 }
 
 // 开始审核
+const startButtonRef = ref()
+let isReviewing = false
 async function handleReview() {
   if (folderList.value !== null && folderList.value.length === 0) {
     ElMessage({
@@ -164,12 +200,42 @@ async function handleReview() {
     })
     return
   }
+  if (isReviewing === true) {
+    ElMessage({
+      message: '审核中，请勿重复操作！',
+      type: 'warning'
+    })
+    return
+  }
+  isReviewing = true
   try {
-    const resp = await postMultipleRequests(folderList.value)
-    console.log('????', resp)
-    reviewResult.value = resp
+    const reviewResponse = await postMultipleRequests(folderList.value)
+    console.log('/reviewXXX 接口响应：', reviewResponse)
+    reviewResult.value = reviewResponse
     taskEndingFlag.value = true
     currentStep.value = 2
+    // 判断审核是否通过
+    for (const i of reviewResponse) {
+      for (const key in i.data) {
+        if (i.data[key]['right'] === false) {
+          ElMessage({
+            message: '校验不合格：请点击 左侧<扫描文件> 的文件查看不合格项目！',
+            type: 'error',
+            showClose: true,
+            duration: 10000
+          })
+          return
+        }
+      }
+      ElMessage({
+        message: '校验合格！',
+        showClose: true,
+        type: 'success',
+        duration: 10000
+      })
+    }
+    // 审核结束
+    isReviewing = false
   } catch (error) {
     ElMessage({
       message: '审核失败！',
@@ -178,18 +244,19 @@ async function handleReview() {
     console.error(error)
   }
 }
+
 // 请求审核接口:
 async function postMultipleRequests(pictureList) {
   try {
-    const response = await Promise.all(
+    const ocrResponse = await Promise.all(
       pictureList.map(async (i) => {
         const resp = await postOcr(i.file)
         return { name: i.name, data: JSON.parse(resp.data) }
       })
     )
-    console.log('>>>>>>>>>', response)
+    console.log('/ocr 接口响应：', ocrResponse)
     return await Promise.all(
-      response.map(async (i) => {
+      ocrResponse.map(async (i) => {
         const resp = await verify(i.data.type, i.data.data)
         return { name: i.name, type: i.data.type, data: JSON.parse(resp.data) }
       })
@@ -249,6 +316,7 @@ watchEffect(() => {
   }
   if (folderList.value.length === 0) {
     currentStep.value = 0
+    showPopover.value = true
   } else if (folderList.value.length > 0 && !taskEndingFlag.value) {
     // 已扫描文件但未开始审核
     currentStep.value = 1
@@ -258,7 +326,18 @@ watchEffect(() => {
   }
 })
 // 初始化
-onMounted(() => {
+onMounted(async () => {
+  try {
+    folderLoading.value = true
+    await getFolderContent('folder', 'checkFolderTimerId', true)
+    folderLoading.value = false
+    await getFolderContent('backupFolder', 'checkBackupFolderTimerId', true)
+  } catch (error) {
+    console.error(error)
+  } finally {
+    folderLoading.value = false
+  }
+
   if (!folderStore.checkFolderTimerId && !folderStore.checkBackupFolderTimerId) {
     router.push('/setting')
   }

@@ -5,15 +5,26 @@
       <el-button class="button" type="primary" @click="goToHome">完成 / 回到首页 </el-button>
       <h4>配置操作<label style="color: lightcoral">*</label></h4>
       <!-- 配置扫描文件按钮 -->
+      <span style="font-size: 12px">
+        <strong>状态：</strong>
+        <span v-if="folderList" style="color: lightgreen">已配置</span>
+        <span v-if="!folderList" style="color: lightcoral">未配置</span>
+      </span>
       <el-button
         class="button"
         plain
         type="primary"
         @click="handleClick('folder', 'checkFolderTimerId')"
+        style="margin-bottom: 15px"
       >
         指定扫描文件存放文件夹
       </el-button>
       <!-- 配置备份文件按钮 -->
+      <span style="font-size: 12px">
+        <strong>状态：</strong>
+        <span v-if="backupFolderList" style="color: lightgreen">已配置</span>
+        <span v-if="!backupFolderList" style="color: lightcoral">未配置</span>
+      </span>
       <el-button
         class="button"
         plain
@@ -33,6 +44,7 @@
         row-key="name"
         border
         v-loading="folderLoading"
+        empty-text="空目录"
       >
         <el-table-column prop="fileName" label="扫描文件夹" sortable>
           <template #default="scope">
@@ -47,6 +59,7 @@
         style="width: 200px; margin-bottom: 20px"
         row-key="name"
         border
+        empty-text="空目录"
         v-loading="backupFolderLoading"
       >
         <el-table-column prop="fileName" label="备份文件夹" sortable>
@@ -104,12 +117,20 @@ function goToHome() {
 }
 // 初始化
 onMounted(async () => {
-  folderLoading.value = true
-  backupFolderLoading.value = true
-  await getFolderContent('folder', 'checkFolderTimerId', true)
-  folderLoading.value = false
-  await getFolderContent('backupFolder', 'checkBackupFolderTimerId', true)
-  backupFolderLoading.value = false
+  try {
+    // 获取历史文件
+    folderLoading.value = true
+    backupFolderLoading.value = true
+    await getFolderContent('folder', 'checkFolderTimerId', true)
+    folderLoading.value = false
+    await getFolderContent('backupFolder', 'checkBackupFolderTimerId', true)
+    backupFolderLoading.value = false
+  } catch (error) {
+    console.error(error)
+  } finally {
+    folderLoading.value = false
+    backupFolderLoading.value = false
+  }
 })
 </script>
 

@@ -10,13 +10,6 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  server: {
-    proxy: {
-      '/ocr': {
-        target: 'http://localhost:8081'
-      }
-    }
-  },
   plugins: [
     vue(),
     vueDevTools(),
