@@ -1,5 +1,5 @@
 // import './assets/main.css'
-import '@/mock' //使用mock
+// import '@/mock' //使用mock
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
