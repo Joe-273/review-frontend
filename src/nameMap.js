@@ -1,5 +1,5 @@
 export default {
-  formOne: {
+  reviewOne: {
     companyName: '名称',
     socialCode: '统一社会信用代码',
     residence: '住所',
@@ -14,18 +14,18 @@ export default {
     businessScope: '经营范围',
     businessTerm: '营业期限/经营期限'
   },
-  formTwo: {
+  reviewTwo: {
     changeEvent: '变更事项',
     originContent: '原登记内容',
     newContent: '变更后登记内容'
   },
-  formThree: {
+  reviewThree: {
     delegatedAuthority: '委托权限',
     landlineTelephone: '固定电话',
     mobilePhone: '移动电话',
     signatureOfDesignated: '指定代表/委托代理人签字'
   },
-  formFour: {
+  reviewFour: {
     name: '姓名',
     job: '职务',
     typeOfIdentityDocument: '身份证件类型',
@@ -37,7 +37,7 @@ export default {
     mobilePhone: '移动电话',
     emailAddress: '电子邮箱'
   },
-  formFive: {
+  reviewFive: {
     name: '姓名',
     country: '国别(地区)',
     job: '职务',
@@ -46,7 +46,7 @@ export default {
     idNumber: '身份证件号码',
     mobilePhone: '移动电话'
   },
-  formSix: {
+  reviewSix: {
     stockholder: '股东(发起人)、外国投资者名称或姓名',
     country: '国别(地区)',
     documentType: '证件类型',
@@ -56,7 +56,7 @@ export default {
     timeOfInvestment: '出资(认缴)时间',
     wayOfInvestment: '出资方式'
   },
-  formSeven: {
+  reviewSeven: {
     name: '姓名',
     mobilePhone: '移动电话',
     typeOfIdentityDocument: '身份证件类型',

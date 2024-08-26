@@ -1,7 +1,7 @@
 import Mock from 'mockjs'
 
 const ocr = {
-  type: 'formOne',
+  type: 'reviewOne',
   data: {
     companyName: '广西有趣科技有限公司',
     socialCode: '9145012345678910',
@@ -38,7 +38,7 @@ Mock.mock('/ocr', 'post', {
   data: JSON.stringify(ocr)
 })
 
-Mock.mock('/formOne', 'post', {
+Mock.mock('/reviewOne', 'post', {
   code: 200,
   message: 'OCR success',
   data: JSON.stringify(formOne)

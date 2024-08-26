@@ -5,12 +5,12 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/home', // 当访问 '/' 时，重定向到 '/home'
+      redirect: '/home' // 重定向到 /home
     },
     {
       path: '/login',
       name: 'login',
-      component: () => import('../views/Login.vue'),
+      component: () => import('../views/Login.vue')
     },
     {
       path: '/setting',
@@ -21,9 +21,6 @@ const router = createRouter({
     {
       path: '/home',
       name: 'home',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
       component: () => import('../views/Home.vue'),
       meta: { auth: true }
     }

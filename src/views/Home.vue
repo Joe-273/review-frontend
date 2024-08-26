@@ -164,10 +164,19 @@ async function handleReview() {
     })
     return
   }
-  const resp = await postMultipleRequests(folderList.value)
-  reviewResult.value = resp
-  taskEndingFlag.value = true
-  currentStep.value = 2
+  try {
+    const resp = await postMultipleRequests(folderList.value)
+    console.log('????', resp)
+    reviewResult.value = resp
+    taskEndingFlag.value = true
+    currentStep.value = 2
+  } catch (error) {
+    ElMessage({
+      message: '审核失败！',
+      type: 'error'
+    })
+    console.error(error)
+  }
 }
 // 请求审核接口:
 async function postMultipleRequests(pictureList) {
@@ -178,6 +187,7 @@ async function postMultipleRequests(pictureList) {
         return { name: i.name, data: JSON.parse(resp.data) }
       })
     )
+    console.log('>>>>>>>>>', response)
     return await Promise.all(
       response.map(async (i) => {
         const resp = await verify(i.data.type, i.data.data)
@@ -185,7 +195,11 @@ async function postMultipleRequests(pictureList) {
       })
     )
   } catch (error) {
-    console.log(error)
+    ElMessage({
+      message: '请求错误！',
+      type: 'error'
+    })
+    return Promise.reject(error)
   }
 }
 // 审核结束
