@@ -32,13 +32,19 @@ const formOne = {
   }
 }
 
-Mock.mock('/ocr', 'post', {
+Mock.mock('/api/upload', 'post', {
+  code: 200,
+  message: 'OCR success',
+  data: 'http://localhost:xxxx/picture/xxx-xxx-xxxx'
+})
+
+Mock.mock('/api/ocr', 'post', {
   code: 200,
   message: 'OCR success',
   data: JSON.stringify(ocr)
 })
 
-Mock.mock('/reviewOne', 'post', {
+Mock.mock('/api/reviewOne', 'post', {
   code: 200,
   message: 'OCR success',
   data: JSON.stringify(formOne)

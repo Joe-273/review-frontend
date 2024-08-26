@@ -57,7 +57,7 @@ async function getFolderContent(folder, timer, getHandleFromIndexedDB = false) {
           !arraysEqual(folderStore.getState(folderName), result) ||
           folderStore.getState(folderName) === null
         ) {
-          console.log(`>> ${folder} Folder Changed`)
+          // console.log(`>> ${folder} Folder Changed`)
           folderStore.setState(folderName, result)
         }
       }, 1000)
@@ -114,12 +114,12 @@ async function restoreDirectoryHandle(handleKey) {
         return null
       }
 
-      console.log('>> Successfully retrieved and restored directory handle')
+      // console.log('>> Successfully retrieved and restored directory handle')
 
       // 返回成功获取的 directoryHandle
       return directoryHandle
     } else {
-      console.log('No directory handle found in storage')
+      // console.log('No directory handle found in storage')
       return null
     }
   } catch (error) {

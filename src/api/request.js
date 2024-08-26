@@ -1,8 +1,6 @@
 import axios from 'axios'
 
-const request = axios.create({
-  // baseURL: 'http://localhost:8081'
-})
+const request = axios.create()
 request.interceptors.response.use(
   function (response) {
     return response.data

@@ -1,6 +1,8 @@
 <template>
   <div class="home-container">
     <!-- nav 顶部 -->
+    <!-- nav 顶部 -->
+    <!-- nav 顶部 -->
     <div class="nav">
       <h3 style="margin: 0 5px">审核界面</h3>
       <el-steps class="steps" simple :active="currentStep" finish-status="success">
@@ -9,10 +11,19 @@
         <el-step title="查看结果" />
         <el-step title="任务完成" />
       </el-steps>
-      <el-button @click="dialogFormVisible = true">
-        <el-icon><Setting /></el-icon>
-      </el-button>
+      <el-tooltip
+        class="box-item"
+        effect="dark"
+        content="管理员操作：打开配置面板"
+        placement="bottom"
+      >
+        <el-button @click="dialogFormVisible = true">
+          <el-icon><Setting /></el-icon>
+        </el-button>
+      </el-tooltip>
     </div>
+    <!-- layout 主要界面 -->
+    <!-- layout 主要界面 -->
     <!-- layout 主要界面 -->
     <div class="layout">
       <div class="left-list">
@@ -65,20 +76,44 @@
           </div>
         </el-popover>
       </div>
-      <div class="main-container" :class="{ 'main-detailView': detailView }">
+      <div
+        v-loading="isReviewing"
+        class="main-container"
+        :class="{ 'main-detailView': detailView }"
+      >
+        <div v-show="!isReviewing && currentStep >= 2">
+          <div v-show="!isPass">
+            <el-alert
+              title="校验不合格"
+              :closable="false"
+              type="error"
+              description="请点击 左侧 <扫描文件> 的文件查看不合格项目，也可以点击左下角 [审核结束 & 打印结果] 打印结果。"
+              show-icon
+            />
+          </div>
+          <div v-show="isPass">
+            <el-alert title="校验合格" :closable="false" type="success" show-icon />
+          </div>
+        </div>
         <el-image :src="currentPicture" fit="contain" style="width: 100%; height: 100%" />
       </div>
       <div class="right-list" :class="{ 'right-detailView': detailView }">
-        <el-table :data="currentResult" empty-text="无校验结果">
-          <el-table-column label="检验项目" width="140" prop="name"></el-table-column>
-          <el-table-column v-if="detailView" label="问题">
+        <el-table :data="currentResult" fit empty-text="无校验结果">
+          <el-table-column label="检验项目" min-width="140" prop="name"></el-table-column>
+          <el-table-column v-if="detailView" align="center" label="问题">
             <template #default="scope">
               <span v-if="!scope.row.result.right">
                 {{ scope.row.result.checkItem }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="检验结果" width="140" prop="result.right" sortable>
+          <el-table-column
+            label="检验结果"
+            align="right"
+            min-width="140"
+            prop="result.right"
+            sortable
+          >
             <template #default="scope">
               <el-tag :type="scope.row.result.right ? 'success' : 'danger'">
                 {{ scope.row.result.right ? 'TRUE / 合格' : 'FALSE / 不合格' }}
@@ -102,16 +137,18 @@
       </div>
     </div>
     <!-- dialog 弹窗 -->
+    <!-- dialog 弹窗 -->
+    <!-- dialog 弹窗 -->
     <el-dialog v-model="dialogFormVisible" title="管理员验证：" width="500">
-      <el-form>
+      <el-form @submit.prevent="goToSetting">
         <el-form-item label="请输入密码：" :label-width="formLabelWidth">
-          <el-input v-model="loginPwd" type="password" autocomplete="off" />
+          <el-input v-model="loginPwd" type="password" />
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="dialogFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="goToSetting"> 确认 </el-button>
+          <el-button @click.prevent="dialogFormVisible = false">取消</el-button>
+          <el-button type="primary" @click.prevent="goToSetting">确认</el-button>
         </div>
       </template>
     </el-dialog>
@@ -120,30 +157,42 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { useFolderStore } from '@/stores/folder'
-import { useUserStore } from '@/stores/user'
 import { computed, onMounted, ref, watchEffect } from 'vue'
 import { Setting } from '@element-plus/icons-vue'
-
-import { createFolder } from '@/utils/writeContent'
+// Store
+import { useFolderStore } from '@/stores/folder'
+import { useUserStore } from '@/stores/user'
+// Utils
+import { createFolder, writeFile } from '@/utils/writeContent'
 import { moveFolderContents } from '@/utils/moveFolderContents'
 import { getCurrentDateTimeString } from '@/utils/getCurrentTime'
+import getFolderContent from '@/utils/getFolderContent'
+import Logger from '@/utils/recordLog'
+// API
 import { postOcr } from '@/api/ocr'
 import { verify } from '@/api/verify'
-
+// Config
 import nameMap from '@/nameMap'
-import getFolderContent from '@/utils/getFolderContent'
-const router = useRouter()
-const folderStore = useFolderStore()
-const user = useUserStore()
+import { postUpload } from '@/api/upload'
+// 路由实例
+const router = useRouter() // 路由实例
+const folderStore = useFolderStore() // 文件夹仓库实例
+const user = useUserStore() // 用户仓库实例
+const logger = new Logger() // 日志实例
 
-const taskEndingFlag = ref(false) // 任务结束标记
+// Flags
+const taskEndingFlag = ref(false) // 标记任务是否结束
+const isReviewing = ref(false) // 标记审核是否进行中
+const isPass = ref(false) //标记审核是否通过
 
-/* nav / 顶部 */
+/* Nav / 顶部 */
+/* Nav / 顶部 */
+/* Nav / 顶部 */
 const loginPwd = ref(null)
 const dialogFormVisible = ref(false)
 const currentStep = ref(0)
 
+// 导航设置
 function goToSetting() {
   // TODO 这里应该是请求登录API验证
   if (user.login({ loginId: 'admin', loginPwd: loginPwd.value })) {
@@ -158,19 +207,21 @@ function goToSetting() {
 }
 
 /* 左边 */
+/* 左边 */
+/* 左边 */
 const reviewResult = ref(null) // 审核结果
 const currentPicture = ref(null) // 显示的图片
-const showPopover = ref(true) //显示提示
+const showPopover = ref(true) // 显示提示
 const folderLoading = ref(false) // 加载效果
-// 扫描文件列表数组
-const folderList = computed(() => folderStore.folderContent)
-// 切换图片显示
+const startButtonRef = ref() // 开始审核按钮的 DOM
+const folderList = computed(() => folderStore.folderContent) // 扫描文件列表数组
+
+// 点击效果，切换图片显示
 function handleRowClick(row) {
   currentPicture.value = URL.createObjectURL(row.file)
   if (currentStep.value >= 3) {
-    // 审核结束
+    // 审核结束的点击效果
     const [data] = reviewResult.value.filter((i) => i.name === row.name)
-    // currentResult.value = data.data.reduce((r, i) => r.push(i), [])
     currentResult.value = []
     const type = data.type
     for (const key in data.data) {
@@ -178,90 +229,128 @@ function handleRowClick(row) {
     }
   }
 }
+
 // 重新扫描
 async function handleRestart() {
   // 删除所有文件
+  logger.info('开始重新扫描操作...')
   await moveFolderContents(folderStore.folderHandle)
+  logger.info('删除所有文件，重新扫描')
+  // 重置操作
+  currentResult.value = null
+  currentPicture.value = null
   // 到第一步
   ElMessage({
     message: '任务重置成功，请重新扫描文件！',
     type: 'success'
   })
+  logger.info('重新扫描操作完成')
 }
 
 // 开始审核
-const startButtonRef = ref()
-let isReviewing = false
 async function handleReview() {
-  if (folderList.value !== null && folderList.value.length === 0) {
+  if (folderList.value.length === 0) {
+    logger.warn('文件列表为空，请先扫描文件！')
     ElMessage({
       message: '请先扫描文件！',
       type: 'warning'
     })
     return
   }
-  if (isReviewing === true) {
+  if (isReviewing.value) {
+    logger.warn('审核中，请勿重复操作！')
     ElMessage({
       message: '审核中，请勿重复操作！',
       type: 'warning'
     })
     return
   }
-  isReviewing = true
+  isReviewing.value = true
+  logger.info('开始审核...')
   try {
     const reviewResponse = await postMultipleRequests(folderList.value)
-    console.log('/reviewXXX 接口响应：', reviewResponse)
     reviewResult.value = reviewResponse
-    taskEndingFlag.value = true
-    currentStep.value = 2
     // 判断审核是否通过
     for (const i of reviewResponse) {
       for (const key in i.data) {
         if (i.data[key]['right'] === false) {
-          ElMessage({
-            message: '校验不合格：请点击 左侧<扫描文件> 的文件查看不合格项目！',
-            type: 'error',
-            showClose: true,
-            duration: 10000
-          })
+          isPass.value = false
           return
         }
       }
-      ElMessage({
-        message: '校验合格！',
-        showClose: true,
-        type: 'success',
-        duration: 10000
-      })
+      isPass.value = true
+      logger.info(`校验合格：${JSON.stringify({ name: i.name, type: i.type }, null, 4)}`)
     }
-    // 审核结束
-    isReviewing = false
   } catch (error) {
+    logger.error(`审核失败：${error.message}\n\n\n`)
+    console.error(error)
+    // 创建日志日志文件并保存到备份文件夹中
+    writeFile(folderStore.backupFolderHandle, 'Error-log.txt', logger.getLogs())
     ElMessage({
       message: '审核失败！',
       type: 'error'
     })
-    console.error(error)
+  } finally {
+    isReviewing.value = false // 审核结束
+    taskEndingFlag.value = true // 任务结束
+    currentStep.value = 2 // 当前进度
+    // 展示第一张图片的结果
+    currentPicture.value = URL.createObjectURL(folderList.value[0]['file'])
+    currentResult.value = []
+    const type = reviewResult.value[0].type
+    for (const key in reviewResult.value[0].data) {
+      currentResult.value.push({
+        name: nameMap[type][key],
+        result: reviewResult.value[0].data[key]
+      })
+    }
+    logger.info('审核结束')
   }
 }
 
-// 请求审核接口:
+// 请求审核接口
 async function postMultipleRequests(pictureList) {
   try {
-    const ocrResponse = await Promise.all(
+    // 请求upload接口，上传图片
+    const uploadResponse = await Promise.all(
       pictureList.map(async (i) => {
-        const resp = await postOcr(i.file)
+        const resp = await postUpload(i.file)
+        return { name: i.name, url: resp }
+      })
+    )
+    // 请求 OCR 接口
+    logger.info('开始请求 OCR 接口...')
+    const ocrResponse = await Promise.all(
+      uploadResponse.map(async (i) => {
+        const resp = await postOcr(i.url)
         return { name: i.name, data: JSON.parse(resp.data) }
       })
     )
-    console.log('/ocr 接口响应：', ocrResponse)
-    return await Promise.all(
+    logger.info(
+      `/ocr 接口响应：${JSON.stringify(
+        ocrResponse.map((i) => ({ name: i.name, type: i.data.type })),
+        null,
+        4
+      )}`
+    )
+    logger.info('开始请求验证接口...')
+    // 请求验证接口
+    const reviewResponse = await Promise.all(
       ocrResponse.map(async (i) => {
         const resp = await verify(i.data.type, i.data.data)
         return { name: i.name, type: i.data.type, data: JSON.parse(resp.data) }
       })
     )
+    logger.info(
+      `/reviewXXX 接口响应：${JSON.stringify(
+        reviewResponse.map((i) => ({ name: i.name, type: i.type })),
+        null,
+        4
+      )}`
+    )
+    return reviewResponse
   } catch (error) {
+    logger.error(`请求错误：${error.message}`)
     ElMessage({
       message: '请求错误！',
       type: 'error'
@@ -269,9 +358,11 @@ async function postMultipleRequests(pictureList) {
     return Promise.reject(error)
   }
 }
-// 审核结束
+
+// 任务结束
 async function handleReviewEnding() {
   if (!taskEndingFlag.value) {
+    logger.warn('未进行审核，无法进行结束任务操作')
     ElMessageBox.alert('请先开始审核！', '错误：', {
       confirmButtonText: '确定',
       type: 'warning'
@@ -279,34 +370,35 @@ async function handleReviewEnding() {
     return
   }
   const currentTimesName = getCurrentDateTimeString()
+  logger.info('开始创建文件夹和移动文件...')
   // 创建文件夹，将本次扫描文件放入文件夹中
   const handle = await createFolder(folderStore.backupFolderHandle, currentTimesName)
-  // TODO 创建日志
+  // 创建日志日志文件并保存
+  logger.info('审核任务结束并重置任务')
+  writeFile(handle, 'Log.txt', logger.getLogs())
   // 移动本次审核文件到备份文件夹
   await moveFolderContents(folderStore.folderHandle, handle)
   // 任务重置
   taskEndingFlag.value = false
   currentResult.value = []
+  logger.clearLogs() //重置日志
   ElMessage({
-    message: '审核结束!',
+    message: '本次审核任务结束!',
     type: 'success'
   })
 }
 
-/* 中间 */
-
+/* 右边 */
+/* 右边 */
 /* 右边 */
 const currentResult = ref(null)
 const detailView = ref(false)
 const toggleViewsButtonMessage = ref('详细视图')
+
+// 切换视图
 function handletoggleDetailView() {
-  if (detailView.value === true) {
-    detailView.value = false
-    toggleViewsButtonMessage.value = '详细视图'
-  } else {
-    detailView.value = true
-    toggleViewsButtonMessage.value = '粗略视图'
-  }
+  detailView.value = !detailView.value
+  toggleViewsButtonMessage.value = detailView.value ? '粗略视图' : '详细视图'
 }
 
 // 侦听器
@@ -325,12 +417,12 @@ watchEffect(() => {
     currentStep.value = 3
   }
 })
+
 // 初始化
 onMounted(async () => {
   try {
     folderLoading.value = true
     await getFolderContent('folder', 'checkFolderTimerId', true)
-    folderLoading.value = false
     await getFolderContent('backupFolder', 'checkBackupFolderTimerId', true)
   } catch (error) {
     console.error(error)
@@ -376,6 +468,7 @@ onMounted(async () => {
   border: 1px solid var(--el-border-color);
 }
 .left-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -407,8 +500,9 @@ onMounted(async () => {
 .main-detailView {
   flex: 0;
   width: 0;
+  transform: scaleX(0);
 }
 .right-detailView {
-  flex: 5;
+  flex: 4;
 }
 </style>

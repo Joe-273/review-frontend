@@ -1,10 +1,9 @@
 import router from './router'
-import { useUserStore } from "@/stores/user";
-
+import { useUserStore } from '@/stores/user'
 
 router.beforeEach((to, from, next) => {
   const user = useUserStore()
-  const loginStatus = sessionStorage.getItem("loginStatus")
+  const loginStatus = sessionStorage.getItem('loginStatus')
   const islogin = user.loginStatus || !!loginStatus
 
   if (to.meta.auth) {
@@ -24,5 +23,4 @@ router.beforeEach((to, from, next) => {
     }
     next()
   }
-
 })
