@@ -6,7 +6,6 @@ export async function postUpload(file) {
 
   // 发送请求
   const response = await request.post('/api/upload', formData)
-
   // 返回响应
   return response
 }

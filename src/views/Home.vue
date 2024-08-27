@@ -99,8 +99,15 @@
       </div>
       <div class="right-list" :class="{ 'right-detailView': detailView }">
         <el-table :data="currentResult" fit empty-text="无校验结果">
-          <el-table-column label="检验项目" min-width="140" prop="name"></el-table-column>
-          <el-table-column v-if="detailView" align="center" label="问题">
+          <el-table-column label="检验项目" min-width="170" prop="name"></el-table-column>
+          <el-table-column v-if="detailView" min-width="300" label="识别结果">
+            <template #default="scope">
+              <span>
+                {{ scope.row.ocr }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="detailView" min-width="300" label="问题">
             <template #default="scope">
               <span v-if="!scope.row.result.right">
                 {{ scope.row.result.checkItem }}
@@ -183,11 +190,11 @@ const logger = new Logger() // 日志实例
 // Flags
 const taskEndingFlag = ref(false) // 标记任务是否结束
 const isReviewing = ref(false) // 标记审核是否进行中
-const isPass = ref(false) //标记审核是否通过
+const isPass = ref(true) //标记审核是否通过
 
-/* Nav / 顶部 */
-/* Nav / 顶部 */
-/* Nav / 顶部 */
+/* Nav */
+/* Nav */
+/* Nav */
 const loginPwd = ref(null)
 const dialogFormVisible = ref(false)
 const currentStep = ref(0)
@@ -206,26 +213,39 @@ function goToSetting() {
   }
 }
 
-/* 左边 */
-/* 左边 */
-/* 左边 */
+/* Left */
+/* Left */
+/* Left */
 const reviewResult = ref(null) // 审核结果
 const currentPicture = ref(null) // 显示的图片
 const showPopover = ref(true) // 显示提示
 const folderLoading = ref(false) // 加载效果
 const startButtonRef = ref() // 开始审核按钮的 DOM
-const folderList = computed(() => folderStore.folderContent) // 扫描文件列表数组
+const folderList = computed(() => {
+  if (folderStore.folderContent) {
+    return folderStore.folderContent.map((i) => {
+      i.url = URL.createObjectURL(i.file)
+      return i
+    })
+  } else {
+    return null
+  }
+}) // 扫描文件列表数组
 
 // 点击效果，切换图片显示
 function handleRowClick(row) {
-  currentPicture.value = URL.createObjectURL(row.file)
+  currentPicture.value = row.url
   if (currentStep.value >= 3) {
     // 审核结束的点击效果
     const [data] = reviewResult.value.filter((i) => i.name === row.name)
     currentResult.value = []
     const type = data.type
-    for (const key in data.data) {
-      currentResult.value.push({ name: nameMap[type][key], result: data.data[key] })
+    for (const key in data.verifyResult) {
+      currentResult.value.push({
+        name: nameMap[type][key],
+        result: data.verifyResult[key],
+        ocr: data.ocrResult[key]
+      })
     }
   }
 }
@@ -271,16 +291,36 @@ async function handleReview() {
     const reviewResponse = await postMultipleRequests(folderList.value)
     reviewResult.value = reviewResponse
     // 判断审核是否通过
-    for (const i of reviewResponse) {
-      for (const key in i.data) {
-        if (i.data[key]['right'] === false) {
+    for (const i of reviewResult.value) {
+      for (const key in i.verifyResult) {
+        if (i.verifyResult[key]['right'] === false) {
           isPass.value = false
-          return
+          break
         }
       }
-      isPass.value = true
+      if (!isPass.value) {
+        // 不通过
+        break
+      }
+      // 通过
       logger.info(`校验合格：${JSON.stringify({ name: i.name, type: i.type }, null, 4)}`)
     }
+
+    // 展示第一张图片的结果
+    currentPicture.value = folderList.value[0].url
+    currentResult.value = []
+    const type = reviewResult.value[0].type
+    for (const key in reviewResult.value[0].verifyResult) {
+      currentResult.value.push({
+        name: nameMap[type][key],
+        result: reviewResult.value[0].verifyResult[key],
+        ocr: reviewResult.value[0].ocrResult[key]
+      })
+    }
+
+    logger.info('审核结束')
+    taskEndingFlag.value = true // 任务结束
+    currentStep.value = 2 // 当前进度
   } catch (error) {
     logger.error(`审核失败：${error.message}\n\n\n`)
     console.error(error)
@@ -292,19 +332,6 @@ async function handleReview() {
     })
   } finally {
     isReviewing.value = false // 审核结束
-    taskEndingFlag.value = true // 任务结束
-    currentStep.value = 2 // 当前进度
-    // 展示第一张图片的结果
-    currentPicture.value = URL.createObjectURL(folderList.value[0]['file'])
-    currentResult.value = []
-    const type = reviewResult.value[0].type
-    for (const key in reviewResult.value[0].data) {
-      currentResult.value.push({
-        name: nameMap[type][key],
-        result: reviewResult.value[0].data[key]
-      })
-    }
-    logger.info('审核结束')
   }
 }
 
@@ -322,8 +349,8 @@ async function postMultipleRequests(pictureList) {
     logger.info('开始请求 OCR 接口...')
     const ocrResponse = await Promise.all(
       uploadResponse.map(async (i) => {
-        const resp = await postOcr(i.url)
-        return { name: i.name, data: JSON.parse(resp.data) }
+        const resp = await postOcr({ url: i.url })
+        return { name: i.name, data: { ...resp, type: resp.type.substring(1) } }
       })
     )
     logger.info(
@@ -337,8 +364,9 @@ async function postMultipleRequests(pictureList) {
     // 请求验证接口
     const reviewResponse = await Promise.all(
       ocrResponse.map(async (i) => {
-        const resp = await verify(i.data.type, i.data.data)
-        return { name: i.name, type: i.data.type, data: JSON.parse(resp.data) }
+        const ocrResult = processOcrData(JSON.parse(i.data.data).data.data)
+        const resp = await verify(i.data.type, processOcrData(JSON.parse(i.data.data).data.data))
+        return { name: i.name, type: i.data.type, verifyResult: resp, ocrResult }
       })
     )
     logger.info(
@@ -357,6 +385,13 @@ async function postMultipleRequests(pictureList) {
     })
     return Promise.reject(error)
   }
+}
+// 处理ocr数据
+function processOcrData(dataArray) {
+  return dataArray.reduce((r, i) => {
+    r[i.name] = i.fieldWord
+    return r
+  }, {})
 }
 
 // 任务结束
@@ -388,9 +423,9 @@ async function handleReviewEnding() {
   })
 }
 
-/* 右边 */
-/* 右边 */
-/* 右边 */
+/* Right */
+/* Right */
+/* Right */
 const currentResult = ref(null)
 const detailView = ref(false)
 const toggleViewsButtonMessage = ref('详细视图')
@@ -407,10 +442,12 @@ watchEffect(() => {
     return
   }
   if (folderList.value.length === 0) {
+    // 未扫描文件
     currentStep.value = 0
     showPopover.value = true
   } else if (folderList.value.length > 0 && !taskEndingFlag.value) {
     // 已扫描文件但未开始审核
+    currentPicture.value = folderList.value[0].url
     currentStep.value = 1
   } else if (taskEndingFlag.value) {
     // 审核结束
@@ -468,10 +505,10 @@ onMounted(async () => {
   border: 1px solid var(--el-border-color);
 }
 .left-list {
-  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  width: 240px;
 }
 .button-area {
   display: flex;
@@ -485,6 +522,7 @@ onMounted(async () => {
   flex: 3;
   margin: 0 5px;
   padding: 5px;
+  opacity: 1;
 }
 .right-list {
   flex: 1;
@@ -499,8 +537,11 @@ onMounted(async () => {
 }
 .main-detailView {
   flex: 0;
-  width: 0;
   transform: scaleX(0);
+  margin: 0;
+  padding: 0;
+  border: none;
+  padding-left: 5px;
 }
 .right-detailView {
   flex: 4;
