@@ -181,6 +181,7 @@ import { verify } from '@/api/verify'
 // Config
 import nameMap from '@/nameMap'
 import { postUpload } from '@/api/upload'
+import { ElMessage } from 'element-plus'
 // 路由实例
 const router = useRouter() // 路由实例
 const folderStore = useFolderStore() // 文件夹仓库实例
@@ -235,7 +236,7 @@ const folderList = computed(() => {
 // 点击效果，切换图片显示
 function handleRowClick(row) {
   currentPicture.value = row.url
-  if (currentStep.value >= 3) {
+  if (currentStep.value >= 3 || reviewResult.value !== null) {
     // 审核结束的点击效果
     const [data] = reviewResult.value.filter((i) => i.name === row.name)
     currentResult.value = []
@@ -269,6 +270,14 @@ async function handleRestart() {
 
 // 开始审核
 async function handleReview() {
+  if (currentStep.value >= 3) {
+    // 审核已经结束
+    ElMessage({
+      message: '审核已经结束，请点击审核结束重启任务！',
+      type: 'warning'
+    })
+    return
+  }
   if (folderList.value.length === 0) {
     logger.warn('文件列表为空，请先扫描文件！')
     ElMessage({
@@ -288,6 +297,10 @@ async function handleReview() {
   isReviewing.value = true
   logger.info('开始审核...')
   try {
+    // 变为粗略视图
+    detailView.value = false
+    toggleViewsButtonMessage.value = '详细视图'
+
     const reviewResponse = await postMultipleRequests(folderList.value)
     reviewResult.value = reviewResponse
     // 判断审核是否通过
@@ -307,7 +320,7 @@ async function handleReview() {
     }
 
     // 展示第一张图片的结果
-    currentPicture.value = folderList.value[0].url
+   currentPicture.value = folderList.value[0].url
     currentResult.value = []
     const type = reviewResult.value[0].type
     for (const key in reviewResult.value[0].verifyResult) {
@@ -350,7 +363,32 @@ async function postMultipleRequests(pictureList) {
     const ocrResponse = await Promise.all(
       uploadResponse.map(async (i) => {
         const resp = await postOcr({ url: i.url })
-        return { name: i.name, data: { ...resp, type: resp.type.substring(1) } }
+        if (resp.type !== undefined) {
+          return {
+            name: i.name,
+            data: {
+              data: processOcrData(JSON.parse(resp.data).data.data),
+              type: resp.type.substring(1)
+            }
+          }
+        } else {
+          const result = { name: i.name, data: {} }
+          for (let key in resp) {
+            if (resp[key].type.includes('idCard')) {
+              // 识别身份证信息
+              const ocrData = JSON.parse(JSON.parse(resp[key].data).data).data
+              result.data.data = { ...result.data.data, ...ocrData.face.data, ...ocrData.back.data }
+            } else {
+              // 自定义模板识别
+              result.data.data = {
+                ...result.data.data,
+                ...processOcrData(JSON.parse(resp[key].data).data.data)
+              }
+              result.data.type = resp[key].type.substring(1)
+            }
+          }
+          return result
+        }
       })
     )
     logger.info(
@@ -364,9 +402,9 @@ async function postMultipleRequests(pictureList) {
     // 请求验证接口
     const reviewResponse = await Promise.all(
       ocrResponse.map(async (i) => {
-        const ocrResult = processOcrData(JSON.parse(i.data.data).data.data)
-        const resp = await verify(i.data.type, processOcrData(JSON.parse(i.data.data).data.data))
-        return { name: i.name, type: i.data.type, verifyResult: resp, ocrResult }
+        // const ocrResult = processOcrData(JSON.parse(i.data.data).data.data)
+        const resp = await verify(i.data.type, i.data.data)
+        return { name: i.name, type: i.data.type, verifyResult: resp, ocrResult: i.data.data }
       })
     )
     logger.info(
@@ -389,7 +427,11 @@ async function postMultipleRequests(pictureList) {
 // 处理ocr数据
 function processOcrData(dataArray) {
   return dataArray.reduce((r, i) => {
-    r[i.name] = i.fieldWord
+    if (i.name !== undefined) {
+      r[i.name] = i.fieldWord
+    } else {
+      r[i.fieldName] = i.fieldWord
+    }
     return r
   }, {})
 }
